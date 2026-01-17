@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chordcontroller"
+version = "1.0.0"
+description = "Control the mouse and keyboard with a Nintendo Switch (or similar) controller"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Desktop Environment",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "pyside6",
+    "pygame",
+    "pydantic",
+    "pynput",
+    "Pillow",
+]
+
+[project.scripts]
+chordcontroller = "chordcontroller.main:main"
+
+[project.gui-scripts]
+chordcontroller-gui = "chordcontroller.main:main"
+
+[tool.setuptools.packages.find]
+include = ["chordcontroller*"]
+
+[tool.setuptools.package-data]
+chordcontroller = [
+    "resources/*.png",
+    "resources/*.txt",
+    "resources/outline/*.png",
+    "resources/solid/*.png",
+]

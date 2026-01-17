@@ -1,0 +1,5 @@
+pyside6
+pygame
+pydantic
+pynput
+Pillow
