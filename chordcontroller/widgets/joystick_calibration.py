@@ -141,14 +141,8 @@ class JoystickDisplay(QWidget):
         if self.calibration.is_complete():
             label_text = f"{self.name} ✓"
         else:
-            completion = self.get_completion_percentage()
-            label_text = f"{self.name}: {completion:.0f}%"
+            label_text = self.name
         painter.drawText(5, 15, label_text)
-        
-        # Draw position coordinates
-        painter.setPen(QColor(180, 180, 180))
-        coord_text = f"({self.pos_x:.2f}, {self.pos_y:.2f})"
-        painter.drawText(5, h - 5, coord_text)
 
 
 class JoystickCalibrationWindow(QWidget):
