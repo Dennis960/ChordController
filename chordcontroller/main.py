@@ -14,17 +14,21 @@ def main():
     # Required for multiprocessing to work correctly on Windows
     multiprocessing.freeze_support()
     
-    ui_recv_pipe, ui_send_pipe = multiprocessing.Pipe(duplex=False)
+    # Pipe for UI to receive messages from controller process
+    ui_recv_pipe, controller_send_pipe = multiprocessing.Pipe(duplex=False)
+    # Pipe for controller to receive messages from UI process  
+    controller_recv_pipe, ui_send_pipe = multiprocessing.Pipe(duplex=False)
+    
     controller_process = multiprocessing.Process(
         target=controller_input_process_main,
-        args=(ui_send_pipe,),
+        args=(controller_send_pipe, controller_recv_pipe),
         daemon=True,
     )
     controller_process.start()
 
     ui_process = multiprocessing.Process(
         target=pyside6_ui_process_main,
-        args=(ui_recv_pipe,),
+        args=(ui_recv_pipe, ui_send_pipe),
         daemon=False,
     )
     ui_process.start()
