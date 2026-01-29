@@ -9,7 +9,6 @@ import multiprocessing
 from chordcontroller.processes.controller_input import controller_input_process_main
 from chordcontroller.processes.ui import pyside6_ui_process_main
 
-
 def main():
     """Main entry point for the ChordController application."""
     # Required for multiprocessing to work correctly on Windows

@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QGridLayout,
     QLabel,
-    QHBoxLayout,
 )
 from PySide6.QtCore import Qt
 import sys
@@ -30,31 +29,70 @@ from chordcontroller.widgets.controller_buttons import (
 )
 
 
-class CheatSheetWindow(QMainWindow):
-    def __init__(self, mode: Mode, rows=29, cols=8):
+class _CheatSheetWindow(QMainWindow):
+    """Individual cheatsheet window for a specific mode."""
+
+    def __init__(self, mode: Mode, rows=29, cols=8, scale=0.5):
         super().__init__()
+        self.mode = mode
         self.rows = rows
         self.cols = cols
-        self.mode = mode
+        self.current_screen_index = 0
 
-        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        # Window setup
+        self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setWindowTitle(f"Cheatsheet - {mode.name or 'Default'}")
+        self.setWindowTitle(f"Cheatsheet - {mode.name}")
         self.setStyleSheet("QMainWindow { background-color: black; }")
 
+        # Central widget with main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Grid layout for action items - use fixed 2 columns (button + label)
         self.grid_layout = QGridLayout()
-        self.grid_layout.setSpacing(5)
+        self.grid_layout.setSpacing(2)
+        self.grid_layout.setColumnStretch(0, 0)  # Button column - fixed width
+        self.grid_layout.setColumnStretch(1, 1)  # Action label column - expandable
         main_layout.addLayout(self.grid_layout)
+        main_layout.addStretch()
 
-        self.populate_grid()
+        self._populate_grid(scale)
 
-    def populate_grid(self):
+    def _get_current_screen(self):
+        """Get the screen the window is currently on."""
+        screens = QApplication.screens()
+        window_center = self.geometry().center()
+
+        for i, screen in enumerate(screens):
+            if screen.geometry().contains(window_center):
+                return i
+        return 0
+
+    def _center_on_screen(self, screen_index):
+        """Center window on the specified screen."""
+        screens = QApplication.screens()
+
+        if screen_index < len(screens):
+            screen = screens[screen_index]
+        else:
+            screen = QApplication.primaryScreen()
+            screen_index = 0
+
+        # Get screen geometry and center window
+        screen_geometry = screen.geometry()
+        window_size = self.size()
+
+        x = screen_geometry.x() + (screen_geometry.width() - window_size.width()) // 2
+        y = screen_geometry.y() + (screen_geometry.height() - window_size.height()) // 2
+
+        self.move(x, y)
+        self.current_screen_index = screen_index
+
+    def _populate_grid(self, scale=0.5):
+        """Populate grid with current mode's actions."""
         # Clear existing widgets
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
@@ -62,8 +100,7 @@ class CheatSheetWindow(QMainWindow):
                 item.widget().deleteLater()
 
         # Collect all actions with their button widgets
-        actions_list = []
-        scale = 0.5
+        actions_list: list[tuple[QWidget, str]] = []
 
         # Multi-button actions
         if self.mode.multi_button_actions:
@@ -132,7 +169,7 @@ class CheatSheetWindow(QMainWindow):
                 if button_widget:
                     actions_list.append((button_widget, action_string))
 
-        # Add items to grid
+        # Add items to grid - fill down rows, then across cols
         for idx, (button_widget, action_text) in enumerate(actions_list):
             if idx >= self.rows * self.cols:
                 break
@@ -140,114 +177,120 @@ class CheatSheetWindow(QMainWindow):
             row = idx % self.rows
             col = idx // self.rows
 
-            # Create container widget with button and label
-            container = QWidget()
-            container_layout = QHBoxLayout(container)
-            container_layout.setContentsMargins(0, 0, 0, 0)
-            container_layout.setSpacing(8)
+            # Add button widget to grid (column pair: col*2)
+            self.grid_layout.addWidget(button_widget, row, col * 2)
 
-            # Add button widget
-            container_layout.addWidget(button_widget)
-
-            # Add action label
+            # Add action label to grid (column pair: col*2 + 1)
             label = QLabel(action_text)
             label.setStyleSheet("QLabel { color: white; font-size: 10pt; }")
-            label.setWordWrap(False)
-            container_layout.addWidget(label)
-            container_layout.addStretch()
+            # label.setWordWrap(True)
+            self.grid_layout.addWidget(label, row, col * 2 + 1)
 
-            self.grid_layout.addWidget(container, row, col)
+    def open(self, screen_index=None):
+        """Open and display the cheatsheet window."""
+        if screen_index is not None:
+            self.current_screen_index = screen_index
 
-    def set_mode(self, mode: Mode):
-        self.mode = mode
-        self.setWindowTitle(f"Cheatsheet - {mode.name or 'Default'}")
-        self.populate_grid()
-        # Reset size constraints and resize to fit content
-        self.setMinimumSize(0, 0)
-        self.setMaximumSize(16777215, 16777215)  # QWIDGETSIZE_MAX
-        self.adjustSize()
-        # Process events to ensure layout is updated
-        from PySide6.QtWidgets import QApplication
+        self.show()
+        self._center_on_screen(self.current_screen_index)
 
-        QApplication.processEvents()
+    def close(self):
+        """Close and hide the cheatsheet window."""
+        # Remember screen before closing
+        current_screen = self._get_current_screen()
+        if current_screen is not None:
+            self.current_screen_index = current_screen
+        self.hide()
+
+    def toggle(self, screen_index=None):
+        """Toggle the cheatsheet window visibility."""
+        if self.isVisible():
+            self.close()
+        else:
+            self.open(screen_index)
 
 
 class CheatSheet:
-    """Manager class for the cheatsheet window."""
+    """Manager class for cached cheatsheet windows per mode."""
 
     def __init__(self, mode: Mode, rows=29, cols=8):
         self.rows = rows
         self.cols = cols
         self.mode = mode
-        self.window = CheatSheetWindow(mode, rows, cols)
+        self.windows: dict[str, _CheatSheetWindow] = {}
         self.last_screen_index = 0
 
+        # Create initial window for the provided mode
+        self._get_or_create_window(mode)
+
+    def _get_or_create_window(self, mode: Mode) -> _CheatSheetWindow:
+        """Get existing window for a mode or create a new one."""
+        mode_key = mode.name
+        if mode_key not in self.windows:
+            if len(mode.button_actions or []) + len(mode.stick_actions or []) + len(mode.multi_button_actions or []) > 50:
+                scale = 0.4
+            else:
+                scale = 0.5
+            self.windows[mode_key] = _CheatSheetWindow(mode, self.rows, self.cols, scale)
+        return self.windows[mode_key]
+
     def _get_current_screen(self):
-        """Get the screen the window is currently on."""
+        """Get the screen the current window is on."""
+        current_window = self._get_or_create_window(self.mode)
         screens = QApplication.screens()
-        window_center = self.window.geometry().center()
+        window_center = current_window.geometry().center()
 
         for i, screen in enumerate(screens):
             if screen.geometry().contains(window_center):
                 return i
         return 0
 
-    def _center_on_screen(self, screen_index):
-        """Center window on the specified screen."""
-        screens = QApplication.screens()
-
-        if screen_index < len(screens):
-            screen = screens[screen_index]
-        else:
-            screen = QApplication.primaryScreen()
-            screen_index = 0
-
-        # Reset size constraints and resize to fit content
-        self.window.setMinimumSize(0, 0)
-        self.window.setMaximumSize(16777215, 16777215)  # QWIDGETSIZE_MAX
-        self.window.adjustSize()
-
-        # Process events to ensure layout is updated
-        QApplication.processEvents()
-
-        # Get screen geometry and center window
-        screen_geometry = screen.geometry()
-        window_size = self.window.size()
-
-        x = screen_geometry.x() + (screen_geometry.width() - window_size.width()) // 2
-        y = screen_geometry.y() + (screen_geometry.height() - window_size.height()) // 2
-
-        self.window.move(x, y)
-        self.last_screen_index = screen_index
-
     def set_mode(self, mode: Mode):
-        self.mode = mode
-        # Get current screen before updating
+        """Switch to a different mode window."""
+        # Get current screen from active window
         current_screen = self._get_current_screen()
         if current_screen is not None:
             self.last_screen_index = current_screen
 
-        self.window.set_mode(mode)
+        # Hide current mode window if visible
+        current_window = self._get_or_create_window(self.mode)
+        was_visible = current_window.isVisible()
+        if was_visible:
+            current_window.close()
 
-        # Resize and recenter on current screen
-        self._center_on_screen(self.last_screen_index)
+        # Switch to new mode
+        self.mode = mode
+        new_window = self._get_or_create_window(mode)
+        new_window.current_screen_index = self.last_screen_index
+        
+        # Show new window if old one was visible
+        if was_visible:
+            new_window.show()
+            new_window._center_on_screen(self.last_screen_index)
 
     def open(self, screen_index=None):
+        """Open and display the cheatsheet window for current mode."""
         if screen_index is not None:
             self.last_screen_index = screen_index
 
-        self._center_on_screen(self.last_screen_index)
-        self.window.show()
+        window = self._get_or_create_window(self.mode)
+        window.show()
+        window._center_on_screen(self.last_screen_index)
 
     def close(self):
+        """Close and hide the cheatsheet window for current mode."""
         # Remember screen before closing
         current_screen = self._get_current_screen()
         if current_screen is not None:
             self.last_screen_index = current_screen
-        self.window.hide()
+
+        window = self._get_or_create_window(self.mode)
+        window.hide()
 
     def toggle(self, screen_index=None):
-        if self.window.isVisible():
+        """Toggle the cheatsheet window visibility for current mode."""
+        window = self._get_or_create_window(self.mode)
+        if window.isVisible():
             self.close()
         else:
             self.open(screen_index)
@@ -260,9 +303,11 @@ if __name__ == "__main__":
 
     config = Config.load_config()
     global_mode = config.modes["global"]
-    mode = Config.merge_modes(config.modes["typing"], global_mode)
+    typing_mode = Config.merge_modes(config.modes["typing"], global_mode)
+    default_mode = Config.merge_modes(config.modes["default"], global_mode)
 
-    cheatsheet = CheatSheet(mode)
+    cheatsheet = CheatSheet(typing_mode)
     cheatsheet.open()
+    # cheatsheet.set_mode(default_mode)
 
     sys.exit(app.exec())
