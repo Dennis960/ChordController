@@ -44,4 +44,5 @@ chordcontroller = [
     "resources/*.txt",
     "resources/outline/*.png",
     "resources/solid/*.png",
+    "trainer/data/*.txt",
 ]

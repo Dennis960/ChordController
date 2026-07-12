@@ -40,6 +40,7 @@ class ControllerInputHandler:
         self.sticky_modifiers: list[KeyboardKey] = []
         """List of currently active sticky modifiers (e.g., ["shift", "ctrl"])."""
         self.sticky_keys_enabled = self.config.settings.sticky_keys_enabled
+        self.current_mode_name = "default"
         if not skip_setup:
             self.toggle_mode("default")
 
@@ -188,6 +189,7 @@ class ControllerInputHandler:
 
     def toggle_mode(self, mode_name: str):
         print(f"Switching to mode {mode_name}")
+        self.current_mode_name = mode_name
         self.release_all_keyboard_buttons()
         self.controller.remove_all_event_listeners(CONTROLLER_INPUT_EVENT_LISTENER_TAG)
 
@@ -295,6 +297,12 @@ class ControllerInputHandler:
     def stop(self):
         self.controller.remove_all_event_listeners(CONTROLLER_INPUT_EVENT_LISTENER_TAG)
         self.release_all_keyboard_buttons()
+
+    def suspend(self):
+        self.stop()
+
+    def resume(self):
+        self.toggle_mode(self.current_mode_name)
 
     def get_cursor_speed(self, x_value, y_value):
         """

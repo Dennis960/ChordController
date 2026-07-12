@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import QTimer
@@ -12,6 +13,8 @@ from chordcontroller.widgets.controller_tray import create_tray_icon
 
 
 def pyside6_ui_process_main(ui_receive_pipe: Connection, ui_send_pipe: Connection):
+    trainer_process: subprocess.Popen | None = None
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
@@ -25,6 +28,42 @@ def pyside6_ui_process_main(ui_receive_pipe: Connection, ui_send_pipe: Connectio
 
     cheatsheet = CheatSheet(current_mode)
 
+    def on_calibration_complete():
+        nonlocal calibration_window
+        ui_send_pipe.send({"cmd": "calibration_complete"})
+        calibration_window = None
+
+    def on_calibration_destroyed():
+        nonlocal calibration_window
+        calibration_window = None
+
+    def open_trainer() -> None:
+        nonlocal trainer_process
+        if trainer_process is not None and trainer_process.poll() is None:
+            return
+
+        ui_send_pipe.send({"cmd": "suspend_controller_input"})
+        trainer_process = subprocess.Popen([sys.executable, "-m", "chordcontroller.trainer.main"])
+        tray_icon.set_trainer_action_enabled(False)
+
+    def check_trainer_process() -> None:
+        nonlocal trainer_process
+        if trainer_process is None:
+            return
+        if trainer_process.poll() is None:
+            return
+
+        trainer_process = None
+        ui_send_pipe.send({"cmd": "resume_controller_input"})
+        tray_icon.set_trainer_action_enabled(True)
+
+    def quit_all() -> None:
+        nonlocal trainer_process
+        if trainer_process is not None and trainer_process.poll() is None:
+            trainer_process.terminate()
+            trainer_process = None
+        app.quit()
+
     if os.name == "nt":
         # Calibration only needed on Windows
         calibration_window = JoystickCalibrationWindow()
@@ -35,18 +74,12 @@ def pyside6_ui_process_main(ui_receive_pipe: Connection, ui_send_pipe: Connectio
         calibration_window = None
         ui_send_pipe.send({"cmd": "calibration_complete"})
 
-    def on_calibration_complete():
-        nonlocal calibration_window
-        ui_send_pipe.send({"cmd": "calibration_complete"})
-        calibration_window = None
-
-    def on_calibration_destroyed():
-        nonlocal calibration_window
-        calibration_window = None
-
 
     # Create system tray icon
-    tray_icon = create_tray_icon(app, overlay)
+    tray_icon = create_tray_icon(app, overlay, on_open_trainer=open_trainer)
+    quit_action = tray_icon.contextMenu().actions()[-1]
+    quit_action.triggered.disconnect()
+    quit_action.triggered.connect(quit_all)
 
     def handle_message():
         nonlocal current_mode, calibration_window
@@ -99,4 +132,11 @@ def pyside6_ui_process_main(ui_receive_pipe: Connection, ui_send_pipe: Connectio
     timer.timeout.connect(handle_message)
     timer.start(16)
 
-    sys.exit(app.exec())
+    trainer_timer = QTimer()
+    trainer_timer.timeout.connect(check_trainer_process)
+    trainer_timer.start(200)
+
+    exit_code = app.exec()
+    if trainer_process is not None and trainer_process.poll() is None:
+        trainer_process.terminate()
+    sys.exit(exit_code)

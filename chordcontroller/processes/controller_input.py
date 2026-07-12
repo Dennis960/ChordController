@@ -19,6 +19,7 @@ def controller_input_process_main(ui_send_pipe: Connection, ui_recv_pipe: Connec
     clock = pygame.time.Clock()
     last_controller_connected = controller.pygame_controller is not None
     calibration_complete = False
+    controller_input_suspended = False
 
     if controller.pygame_controller is not None:
         ui_send_pipe.send({"cmd": "controller_connected"})
@@ -51,6 +52,17 @@ def controller_input_process_main(ui_send_pipe: Connection, ui_recv_pipe: Connec
                 calibration_complete = True
                 # Create input handler now that calibration is done
                 input_handler = ControllerInputHandler(controller, config, overlay_handler)
+            elif cmd == "suspend_controller_input":
+                controller_input_suspended = True
+                if input_handler is not None:
+                    input_handler.suspend()
+            elif cmd == "resume_controller_input":
+                controller_input_suspended = False
+                if calibration_complete:
+                    if input_handler is None:
+                        input_handler = ControllerInputHandler(controller, config, overlay_handler)
+                    else:
+                        input_handler.resume()
 
         # During calibration, send joystick positions to UI
         if not calibration_complete:
@@ -65,7 +77,7 @@ def controller_input_process_main(ui_send_pipe: Connection, ui_recv_pipe: Connec
             })
 
         # Only update input handler if calibration is complete
-        if input_handler is not None:
+        if input_handler is not None and not controller_input_suspended:
             input_handler.update()
 
         clock.tick(60)

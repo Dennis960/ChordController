@@ -1,0 +1,1 @@
+"""Trainer-specific UI widgets."""

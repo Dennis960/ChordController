@@ -22,6 +22,14 @@ Or run it as python module:
 python -m chordcontroller.main
 ```
 
+## Integrated Trainer
+
+The trainer is integrated directly into the `chordcontroller` package and can be opened from the tray icon context menu via `Open Trainer`.
+
+While the trainer is open, controller input handling for the main desktop-control app is suspended automatically so inputs are only used by the trainer.
+
+The trainer opens in fullscreen and can be closed with the `home` button from its start screen.
+
 ## Controller API
 
 The controller is separated into two parts: Buttons and Joysticks.

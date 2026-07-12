@@ -37,7 +37,7 @@ def _create_controller_icon(size=64):
     return QIcon(pixmap)
 
 
-def create_tray_icon(app: QApplication, overlay: ControllerOverlay):
+def create_tray_icon(app: QApplication, overlay: ControllerOverlay, on_open_trainer=None):
     tray_icon = QSystemTrayIcon(_create_controller_icon(64))
     tray_icon.setToolTip("Controller Overlay")
 
@@ -60,10 +60,16 @@ def create_tray_icon(app: QApplication, overlay: ControllerOverlay):
 
     toggle_action.toggled.connect(on_toggle)
 
+    trainer_action = menu.addAction("Open Trainer")
+    if on_open_trainer is not None:
+        trainer_action.triggered.connect(on_open_trainer)
+
     quit_action = menu.addAction("Quit")
     quit_action.triggered.connect(app.quit)
 
     tray_icon.setContextMenu(menu)
     tray_icon.show()
+
+    tray_icon.set_trainer_action_enabled = trainer_action.setEnabled
 
     return tray_icon
