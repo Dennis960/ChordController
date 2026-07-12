@@ -444,8 +444,8 @@ class GuidedCoursePane(QFrame):
 
         self.active_session = None
         self._last_finished_lesson_index = self._active_lesson_index
-        self.continue_button.setEnabled(passed)
-        self.continue_row.setVisible(passed)
+        self.continue_button.setEnabled(True)
+        self.continue_row.setVisible(True)
         self.stack.setCurrentWidget(self.completion_view)
         self._refresh_selection_list()
 
@@ -515,14 +515,12 @@ class GuidedCoursePane(QFrame):
             return
 
         if self.stack.currentWidget() is self.completion_view:
-            if self._last_lesson_passed:
-                self.continue_next_lesson(triggered_by_controller=True)
+            self.continue_next_lesson(triggered_by_controller=True)
 
     def handle_face_button(self, button_name: ControllerButtonName) -> bool:
         if self.stack.currentWidget() is self.completion_view:
             if button_name == "face_right":
-                if self._last_lesson_passed:
-                    self.continue_next_lesson(triggered_by_controller=True)
+                self.continue_next_lesson(triggered_by_controller=True)
                 return True
             if button_name == "face_up":
                 self.practice_again(triggered_by_controller=True)
