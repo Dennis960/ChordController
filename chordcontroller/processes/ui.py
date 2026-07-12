@@ -62,11 +62,11 @@ def pyside6_ui_process_main(ui_receive_pipe: Connection, ui_send_pipe: Connectio
                     merged_mode = Config.merge_modes(mode, global_mode)
                     current_mode = merged_mode
                     cheatsheet.set_mode(merged_mode)
-                    overlay.set_title(mode_name)
+                    overlay.set_title(merged_mode.name)
+            elif cmd == "set_sticky_modifiers":
+                overlay.set_sticky_modifiers(msg.get("modifiers", []))
             elif cmd == "controller_connected":
-                overlay.set_text(
-                    current_mode.name.capitalize() if current_mode.name else "Default"
-                )
+                overlay.set_title(current_mode.name if current_mode.name else "Default")
             elif cmd == "controller_disconnected":
                 overlay.set_text("Controller Disconnected")
             elif cmd == "open_cheatsheet":

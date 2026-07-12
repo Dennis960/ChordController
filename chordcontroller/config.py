@@ -113,6 +113,8 @@ class Settings(BaseModel):
 
     controller_settings: ControllerSettings
     cursor_settings: CursorSettings
+    sticky_keys_enabled: bool = False
+    """If enabled, modifier keys become sticky until toggled off or consumed by a non-modifier key."""
 
 
 class ComputerKeyDownAction(BaseModel):
@@ -421,6 +423,7 @@ default_config = Config(
             cursor_boost_acceleration_time=0.5,
             scroll_speed=0.5,
         ),
+        sticky_keys_enabled=True,
     ),
     button_mapping=get_switch_pro_button_mapping(),
     stick_mapping={

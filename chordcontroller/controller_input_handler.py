@@ -1,7 +1,7 @@
 from chordcontroller.controller_inputs import Controller
 import time
 from chordcontroller.config import *
-from chordcontroller.desktop_outputs import Keyboard, Mouse
+from chordcontroller.desktop_outputs import Keyboard, Mouse, MODIFIERS
 from chordcontroller.widgets.controller_overlay import HeadlessOverlayHandler
 
 
@@ -37,17 +37,55 @@ class ControllerInputHandler:
         self.target_distance_x = 0  # used for mouse movement
         self.target_distance_y = 0  # used for mouse movement
         self.pressed_keys: list[KeyboardKey] = []
+        self.sticky_modifiers: list[KeyboardKey] = []
+        """List of currently active sticky modifiers (e.g., ["shift", "ctrl"])."""
+        self.sticky_keys_enabled = self.config.settings.sticky_keys_enabled
         if not skip_setup:
             self.toggle_mode("default")
+
+    def _set_overlay_sticky_modifiers(self):
+        self.controller_overlay_handler.set_sticky_modifiers(self.sticky_modifiers)
+
+    def _clear_sticky_modifiers(self):
+        for key in list(self.sticky_modifiers):
+            if key in self.pressed_keys:
+                self.pressed_keys.remove(key)
+                keyboard.release(key)
+        self.sticky_modifiers = []
+        self._set_overlay_sticky_modifiers()
+
+    def _toggle_sticky_modifier(self, key: KeyboardKey):
+        if key in self.sticky_modifiers:
+            self.sticky_modifiers.remove(key)
+            if key in self.pressed_keys:
+                self.pressed_keys.remove(key)
+                keyboard.release(key)
+        else:
+            self.sticky_modifiers.append(key)
+            if key not in self.pressed_keys:
+                self.pressed_keys.append(key)
+                keyboard.press(key)
+        self._set_overlay_sticky_modifiers()
 
     def execute_action(self, action: ComputerAction | MiscellaneousAction):
         if action.action == "switch_mode":
             self.toggle_mode(action.mode)
         elif action.action == "key_down":
+            if self.sticky_keys_enabled and action.key in MODIFIERS:
+                self._toggle_sticky_modifier(action.key)
+                return
             if action.key not in self.pressed_keys:
                 self.pressed_keys.append(action.key)
                 keyboard.press(action.key)
+            if (
+                self.sticky_keys_enabled
+                and action.key not in MODIFIERS
+                and self.sticky_modifiers
+            ):
+                self._clear_sticky_modifiers()
         elif action.action == "key_up":
+            if self.sticky_keys_enabled and action.key in MODIFIERS:
+                return
             if action.key in self.pressed_keys:
                 self.pressed_keys.remove(action.key)
                 keyboard.release(action.key)
@@ -60,6 +98,12 @@ class ControllerInputHandler:
         elif action.action == "key_press":
             keyboard.press(action.key)
             keyboard.release(action.key)
+            if (
+                self.sticky_keys_enabled
+                and action.key not in MODIFIERS
+                and self.sticky_modifiers
+            ):
+                self._clear_sticky_modifiers()
         elif action.action == "open_cheat_sheet":
             self.controller_overlay_handler.open_cheatsheet(
                 action.preferred_screen_index
@@ -139,6 +183,8 @@ class ControllerInputHandler:
         for key in self.pressed_keys:
             keyboard.release(key)
         self.pressed_keys = []
+        self.sticky_modifiers = []
+        self._set_overlay_sticky_modifiers()
 
     def toggle_mode(self, mode_name: str):
         print(f"Switching to mode {mode_name}")
@@ -153,9 +199,6 @@ class ControllerInputHandler:
             self.mode = self.config.modes["default"]
         global_mode = self.config.modes["global"]
         self.mode = Config.merge_modes(self.mode, global_mode)
-
-        # Send mode change to UI process via overlay handler pipe
-        self.controller_overlay_handler.set_title(mode_name)
 
         if self.mode.button_actions is not None:
             for (
@@ -197,7 +240,9 @@ class ControllerInputHandler:
                         ),
                         CONTROLLER_INPUT_EVENT_LISTENER_TAG,
                     )
-        self.controller_overlay_handler.set_title(self.mode.name)
+        # Send mode change to UI process via overlay handler pipe.
+        # The UI resolves the final display title and appends sticky modifiers.
+        self.controller_overlay_handler.set_title(mode_name)
 
     def on_update_stick_move_event(
         self,

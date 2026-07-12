@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QMainWindow, QLabel, QApplication
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QCursor
 from multiprocessing.connection import Connection
+from typing import Sequence
 
 
 class HeadlessOverlayHandler:
@@ -13,11 +14,22 @@ class HeadlessOverlayHandler:
     def __init__(self, pipe: Connection):
         self.pipe = pipe
         self.current_mode = "default"
+        self.sticky_modifiers: list[str] = []
+        """List of currently active sticky modifiers (e.g., ["shift", "ctrl"])."""
         self.tag = "controller_overlay"
 
     def set_title(self, title: str):
         self.current_mode = title
         self.pipe.send({"cmd": "set_mode", "mode_name": title})
+
+    def set_sticky_modifiers(self, modifiers: Sequence[str]):
+        self.sticky_modifiers = list(modifiers)
+        self.pipe.send(
+            {
+                "cmd": "set_sticky_modifiers",
+                "modifiers": self.sticky_modifiers,
+            }
+        )
 
     def open_cheatsheet(self, screen_index: int | None):
         self.pipe.send(
@@ -72,6 +84,9 @@ class ControllerOverlay(QMainWindow):
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
+        self.base_title = "Default"
+        self.sticky_modifiers: list[str] = []
+        """List of currently active sticky modifiers (e.g., ["shift", "ctrl"])."""
         self.set_text("Default")
         self.position_top_left()
 
@@ -110,8 +125,22 @@ class ControllerOverlay(QMainWindow):
             self.position_top_left()
 
     def set_title(self, title: str):
-        """Compatibility method for mode changes."""
-        self.set_text(title.capitalize())
+        """Set the base mode title and refresh sticky modifier display."""
+        self.base_title = title.capitalize()
+        self._refresh_text()
+
+    def set_sticky_modifiers(self, modifiers: Sequence[str]):
+        """Set the list of sticky modifiers and refresh display."""
+        self.sticky_modifiers = list(modifiers)
+        self._refresh_text()
+
+    def _refresh_text(self):
+        """Refresh the displayed text based on the base title and sticky modifiers."""
+        display_text = self.base_title
+        if self.sticky_modifiers:
+            sticky = " + ".join(mod.upper() for mod in self.sticky_modifiers)
+            display_text = f"{display_text} [{sticky}]"
+        self.set_text(display_text)
 
     def _check_mouse_over(self):
         margin = 50
