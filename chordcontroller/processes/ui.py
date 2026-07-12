@@ -28,8 +28,12 @@ def pyside6_ui_process_main(ui_receive_pipe: Connection, ui_send_pipe: Connectio
     if os.name == "nt":
         # Calibration only needed on Windows
         calibration_window = JoystickCalibrationWindow()
+        calibration_window.calibration_complete.connect(on_calibration_complete)
+        calibration_window.destroyed.connect(on_calibration_destroyed)
+        calibration_window.show()
     else:
         calibration_window = None
+        ui_send_pipe.send({"cmd": "calibration_complete"})
 
     def on_calibration_complete():
         nonlocal calibration_window
@@ -40,9 +44,6 @@ def pyside6_ui_process_main(ui_receive_pipe: Connection, ui_send_pipe: Connectio
         nonlocal calibration_window
         calibration_window = None
 
-    calibration_window.calibration_complete.connect(on_calibration_complete)
-    calibration_window.destroyed.connect(on_calibration_destroyed)
-    calibration_window.show()
 
     # Create system tray icon
     tray_icon = create_tray_icon(app, overlay)
