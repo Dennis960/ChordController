@@ -5,4 +5,4 @@ This package provides a complete solution for using a Controller
 to control your computer's mouse and keyboard.
 """
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
